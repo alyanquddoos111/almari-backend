@@ -6,6 +6,9 @@ import { LoginDTO } from './dto/userLogin.dto';
 import { SignUpDTO } from './dto/userSignup.dto';
 import { UserInfo } from 'src/entities/Userinfo';
 import { DBSequenceService } from 'src/dbService.service';
+import { CLIENT_RENEG_LIMIT } from 'tls';
+import { CartDTO } from './dto/addToCart.dto';
+import { Cartdata } from 'src/entities/Cartdata';
 
 @Injectable()
 export class UserService {
@@ -14,6 +17,8 @@ export class UserService {
         private userLoginRepository: Repository<typeof Userlogin>,
         @InjectRepository(UserInfo)
         private userInfoRepository: Repository<typeof UserInfo>,
+        @InjectRepository(Cartdata)
+        private cartDataRepository: Repository<typeof Cartdata>,
         private readonly dbSequenceService: DBSequenceService
       ) {}
 
@@ -49,19 +54,14 @@ export class UserService {
       async loginUser(loginDTO:LoginDTO){
         let response = {};
         try {
-            let user = await this.userLoginRepository.findOne({
+            let user = await this.userLoginRepository.find({
                 where:{
                     EMAIL:loginDTO.EMAIL,
                     PASSWORD:loginDTO.PASSWORD
-                }as unknown,
-                select:{
-                    EMAIL:true,
-                    PASSWORD:true
-                } as unknown
+                }as unknown
             });
 
-
-            if(user)
+            if(user.length>0)
             {
                 
                 response = {
@@ -90,21 +90,23 @@ export class UserService {
             httpStatus: HttpStatus.BAD_REQUEST,
             data: [],
           };
-          return error;
+          return response;
         }
       }
 
       async registerUser(signUpDTO:SignUpDTO){
         let response = {};
         try {
-
+        console.log(signUpDTO)
             const isUserExist = await this.userLoginRepository.find({
                 where:{
                     EMAIL:signUpDTO.EMAIL
                 } as unknown,   
             })
 
-            if(isUserExist)
+            console.log(isUserExist)
+
+            if(isUserExist.length>0)
             {
                 response = {
                     status: "FAILURE",
@@ -153,4 +155,86 @@ export class UserService {
       }
     }
 
+    async addToCart(cartDTO:CartDTO){
+      let response = {};
+      try{
+        const newID = await this.dbSequenceService.getTableSequence("card_data_id_seq");
+
+        const payload={
+          ID:newID,
+          TITLE:cartDTO.TITLE,
+          PRICE:cartDTO.PRICE,
+          IMAGE:cartDTO.IMAGE,
+          ITEMLINK:cartDTO.ITEMLINK,
+          DESCRIPTION:cartDTO.DESCRIPTION,
+          SKUCODE:cartDTO.SKUCODE,
+          USERNAME:cartDTO.USERNAME,
+        }
+
+        const cartDataResponse=await this.cartDataRepository.save(payload as unknown);
+
+        response = {
+          status: "SUCCESS",
+          message: "Cart Data Added",
+          httpStatus: HttpStatus.FOUND,
+          data: [],
+        };
+        return response;
+      }
+      catch(error)
+      {
+        console.log(error)
+        response = {
+          status: "FAILURE",
+          message: "Exception Occured",
+          httpStatus: HttpStatus.BAD_REQUEST,
+          data: [],
+        };
+        return response;
+      }
+    }
+
+    async getAllCartedData(username:any){
+      let response = {};
+      try{
+        console.log(username)
+        const cartDataResponse=await this.cartDataRepository.find({
+          where:{
+            USERNAME:username.username
+          } as unknown
+        });
+
+        console.log(cartDataResponse)
+        if(cartDataResponse.length>0)
+        {
+          response = {
+            status: "SUCCESS",
+            message: "Cart Data Found",
+            httpStatus: HttpStatus.FOUND,
+            data: cartDataResponse,
+          };
+          return response;
+        }
+        else{
+          response = {
+            status: "FAILURE",
+            message: "No Data Found",
+            httpStatus: HttpStatus.NOT_FOUND,
+            data: [],
+          };
+          return response;
+        }
+      }
+      catch(error)
+      {
+        console.log(error)
+        response = {
+          status: "FAILURE",
+          message: "Exception Occured",
+          httpStatus: HttpStatus.BAD_REQUEST,
+          data: [],
+        };
+        return response;
+      }
+    }
 }
